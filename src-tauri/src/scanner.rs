@@ -31,8 +31,8 @@ pub async fn scan_directory(
             let filename = file_path.file_name().unwrap_or_default().to_string_lossy().to_string();
             let metadata = fs::metadata(file_path)?;
             let size = metadata.len() as i64;
-            let modified = metadata.modified()?.into();
-            let created = metadata.created().ok().map(|c| c.into());
+            let modified: chrono::DateTime<chrono::Utc> = metadata.modified()?.into();
+            let created: Option<chrono::DateTime<chrono::Utc>> = metadata.created().ok().map(|c| c.into());
 
             let kind = if is_image(file_path) { "image" } else { "video" };
             let id = Uuid::new_v4().to_string();
@@ -94,8 +94,9 @@ fn get_exif_date(path: &Path) -> anyhow::Result<chrono::DateTime<Utc>> {
     if let Some(field) = exif.get_field(Tag::DateTimeOriginal, In::PRIMARY) {
         let datetime = field.display_value().to_string();
         // EXIF format is "YYYY:MM:DD HH:MM:SS"
+        // Use NaiveDateTime instead of DateTime for parsing
         let parsed = chrono::NaiveDateTime::parse_from_str(&datetime, "%Y:%m:%d %H:%M:%S")?;
-        return Ok(chrono::DateTime::from_naive_utc_and_offset(parsed, Utc));
+        return Ok(chrono::DateTime::<Utc>::from_naive_utc_and_offset(parsed, Utc));
     }
     Err(anyhow::anyhow!("No date found"))
 }

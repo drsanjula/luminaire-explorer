@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import {
@@ -9,10 +9,12 @@ import {
   Settings,
   Star,
   Clock,
-  LayoutGrid
+  LayoutGrid,
+  Loader2
 } from "lucide-react";
 import { VirtuosoGrid } from "react-virtuoso";
 import { motion, AnimatePresence } from "framer-motion";
+import Player from "./components/Player";
 
 interface MediaItem {
   id: string;
@@ -27,8 +29,11 @@ export default function App() {
   const [media, setMedia] = useState<MediaItem[]>([]);
   const [isScanning, setIsScanning] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectedMedia, setSelectedMedia] = useState<MediaItem | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   const loadMedia = async () => {
+    setIsLoading(true);
     try {
       const result = await invoke<MediaItem[]>("get_media");
       setMedia(result);
@@ -42,13 +47,26 @@ export default function App() {
       }
     } catch (e) {
       console.error(e);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSearch = async () => {
+    if (!searchQuery.trim()) {
+      loadMedia();
+      return;
+    }
+    try {
+      const result = await invoke<MediaItem[]>("search_media", { query: searchQuery });
+      setMedia(result);
+    } catch (e) {
+      console.error(e);
     }
   };
 
   const handleScan = async () => {
-    // In a real app, use a folder picker. For now, hardcode or ask user.
-    // Let's assume the user wants to scan a specific folder.
-    const path = "/Users/sanju/Pictures"; // Example path
+    const path = "/Users/sanju/photoex"; // Use current directory as default for testing
     setIsScanning(true);
     try {
       await invoke("scan_dir", { path });
@@ -62,8 +80,25 @@ export default function App() {
     loadMedia();
   }, []);
 
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      handleSearch();
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
   return (
     <div className="flex h-screen w-screen overflow-hidden">
+      <AnimatePresence>
+        {selectedMedia && (
+          <Player
+            path={selectedMedia.path}
+            kind={selectedMedia.kind}
+            onClose={() => setSelectedMedia(null)}
+          />
+        )}
+      </AnimatePresence>
+
       {/* Sidebar */}
       <aside className="w-64 sidebar-glass flex flex-col p-6 z-10">
         <div className="flex items-center gap-3 mb-10 px-2">
@@ -87,7 +122,7 @@ export default function App() {
           disabled={isScanning}
           className="mt-auto glass-card p-3 flex items-center justify-center gap-2 hover:bg-white/10 transition-all disabled:opacity-50"
         >
-          <FolderOpen size={18} />
+          {isScanning ? <Loader2 className="animate-spin" size={18} /> : <FolderOpen size={18} />}
           <span>{isScanning ? "Scanning..." : "Import Folder"}</span>
         </button>
       </aside>
@@ -111,14 +146,18 @@ export default function App() {
               <Settings size={22} className="text-white/60" />
             </button>
             <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-accent to-blue-400 p-[2px]">
-              <div className="w-full h-full rounded-full bg-background flex items-center justify-center text-xs font-bold">SJ</div>
+              <div className="w-full h-full rounded-full bg-background flex items-center justify-center text-xs font-bold uppercase">SJ</div>
             </div>
           </div>
         </header>
 
         {/* Media Grid */}
-        <div className="flex-1 px-4 pb-4">
-          {media.length === 0 && !isScanning ? (
+        <div className="flex-1 px-4 pb-4 overflow-hidden">
+          {isLoading && media.length === 0 ? (
+            <div className="h-full flex items-center justify-center">
+              <Loader2 className="animate-spin text-accent" size={32} />
+            </div>
+          ) : media.length === 0 && !isScanning ? (
             <div className="h-full flex flex-col items-center justify-center text-white/20">
               <ImageIcon size={64} className="mb-4 opacity-50" />
               <p className="text-lg">No media found. Import a folder to start.</p>
@@ -129,7 +168,7 @@ export default function App() {
               data={media}
               listClassName="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-4 p-4"
               itemContent={(index, item) => (
-                <MediaCard key={item.id} item={item} index={index} />
+                <MediaCard key={item.id} item={item} index={index} onClick={() => setSelectedMedia(item)} />
               )}
             />
           )}
@@ -151,14 +190,15 @@ function SidebarItem({ icon, label, active = false }: { icon: any, label: string
   );
 }
 
-function MediaCard({ item, index }: { item: MediaItem, index: number }) {
+function MediaCard({ item, index, onClick }: { item: MediaItem, index: number, onClick: () => void }) {
   const thumbUrl = item.thumbnail_path ? convertFileSrc(item.thumbnail_path) : null;
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: Math.min(index * 0.05, 0.5) }}
+      initial={{ opacity: 0, scale: 0.9 }}
+      animate={{ opacity: 1, scale: 1 }}
+      transition={{ delay: Math.min(index * 0.02, 0.3) }}
+      onClick={onClick}
       className="group relative aspect-square glass-card overflow-hidden cursor-pointer"
     >
       {thumbUrl ? (
@@ -174,11 +214,11 @@ function MediaCard({ item, index }: { item: MediaItem, index: number }) {
         </div>
       )}
 
-      <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity p-3 flex flex-col justify-end">
+      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity p-3 flex flex-col justify-end">
         <p className="text-[10px] font-medium truncate w-full opacity-80">{item.filename}</p>
       </div>
 
-      {item.kind === "video" && (
+      {item.kind === "video" && !thumbUrl && (
         <div className="absolute top-2 right-2 p-1.5 bg-black/40 backdrop-blur-md rounded-lg">
           <Video size={12} />
         </div>

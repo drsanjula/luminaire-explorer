@@ -1,9 +1,27 @@
 use sqlx::{sqlite::SqlitePoolOptions, Pool, Sqlite};
-use std::path::PathBuf;
+use std::path::Path;
 use tauri::AppHandle;
 use tauri::Manager;
 
 pub struct Db(pub Pool<Sqlite>);
+
+#[derive(Debug, serde::Serialize, sqlx::FromRow)]
+pub struct Media {
+    pub id: String,
+    pub path: String,
+    pub filename: String,
+    pub kind: String,
+    pub mime_type: Option<String>,
+    pub size: i64,
+    pub width: Option<i32>,
+    pub height: Option<i32>,
+    pub created_at: Option<chrono::DateTime<chrono::Utc>>,
+    pub modified_at: Option<chrono::DateTime<chrono::Utc>>,
+    pub exif_date: Option<chrono::DateTime<chrono::Utc>>,
+    pub indexed_at: Option<chrono::DateTime<chrono::Utc>>,
+    pub is_favorite: bool,
+    pub thumbnail_path: Option<String>,
+}
 
 pub async fn init(app_handle: &AppHandle) -> anyhow::Result<Pool<Sqlite>> {
     let app_dir = app_handle.path().app_data_dir()?;

@@ -13,24 +13,27 @@ async fn scan_dir(path: String, state: tauri::State<'_, db::Db>) -> Result<usize
 }
 
 #[tauri::command]
-async fn get_media(state: tauri::State<'_, db::Db>) -> Result<Vec<serde_json::Value>, String> {
-    sqlx::query_as::<_, sqlx::sqlite::SqliteRow>("SELECT * FROM media ORDER BY exif_date DESC, created_at DESC")
+async fn get_media(state: tauri::State<'_, db::Db>) -> Result<Vec<db::Media>, String> {
+    sqlx::query_as::<_, db::Media>("SELECT * FROM media ORDER BY exif_date DESC, created_at DESC")
         .fetch_all(&state.0)
         .await
         .map_err(|e| e.to_string())
-        .map(|rows| {
-            rows.into_iter().map(|row| {
-                use sqlx::Row;
-                serde_json::json!({
-                    "id": row.get::<String, _>("id"),
-                    "path": row.get::<String, _>("path"),
-                    "filename": row.get::<String, _>("filename"),
-                    "kind": row.get::<String, _>("kind"),
-                    "size": row.get::<i64, _>("size"),
-                    "thumbnail_path": row.get::<Option<String>, _>("thumbnail_path"),
-                })
-            }).collect()
-        })
+}
+
+#[tauri::command]
+async fn search_media(query: String, state: tauri::State<'_, db::Db>) -> Result<Vec<db::Media>, String> {
+    let search_pattern = format!("%{}%", query);
+    sqlx::query_as::<_, db::Media>(
+        "SELECT DISTINCT m.* FROM media m
+         LEFT JOIN tags t ON m.id = t.media_id
+         WHERE m.filename LIKE ? OR t.tag LIKE ?
+         ORDER BY m.exif_date DESC, m.created_at DESC"
+    )
+    .bind(&search_pattern)
+    .bind(&search_pattern)
+    .fetch_all(&state.0)
+    .await
+    .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -73,7 +76,7 @@ pub fn run() {
             });
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![scan_dir, get_media, generate_thumbnails])
+        .invoke_handler(tauri::generate_handler![scan_dir, get_media, generate_thumbnails, search_media])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
