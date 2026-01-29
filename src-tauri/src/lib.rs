@@ -68,6 +68,7 @@ async fn generate_thumbnails(ids: Vec<String>, handle: tauri::AppHandle, state: 
 pub fn run() {
     tauri::Builder::default()
         .plugin(init())
+        .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             let handle = app.handle().clone();
             tauri::async_runtime::block_on(async move {

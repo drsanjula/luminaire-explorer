@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { VirtuosoGrid } from "react-virtuoso";
 import { motion, AnimatePresence } from "framer-motion";
+import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import Player from "./components/Player";
 
 interface MediaItem {
@@ -66,11 +67,20 @@ export default function App() {
   };
 
   const handleScan = async () => {
-    const path = "/Users/sanju/photoex"; // Use current directory as default for testing
-    setIsScanning(true);
     try {
-      await invoke("scan_dir", { path });
+      const selected = await openDialog({
+        directory: true,
+        multiple: false,
+        title: "Select Media Folder"
+      });
+
+      if (!selected) return;
+
+      setIsScanning(true);
+      await invoke("scan_dir", { path: selected });
       await loadMedia();
+    } catch (e) {
+      console.error(e);
     } finally {
       setIsScanning(false);
     }
