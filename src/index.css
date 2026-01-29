@@ -1,0 +1,31 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-background text-white selection:bg-accent selection:text-white font-sans antialiased;
+    margin: 0;
+    overflow: hidden;
+  }
+}
+
+.glass-card {
+  @apply bg-glass backdrop-blur-md border border-white/10 rounded-2xl;
+}
+
+.sidebar-glass {
+  @apply bg-surface/80 backdrop-blur-xl border-r border-white/5;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-white/10 rounded-full hover:bg-white/20 transition-colors;
+}
